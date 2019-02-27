@@ -1016,7 +1016,7 @@ static int hv_compose_msi_msg(struct pci_dev *pdev, unsigned int irq,
 	if (!hpdev)
 		goto return_null_message;
 
-	int_desc = kzalloc(sizeof(*int_desc), GFP_KERNEL);
+	int_desc = kzalloc(sizeof(*int_desc), GFP_ATOMIC);
 	if (!int_desc)
 		goto drop_reference;
 
