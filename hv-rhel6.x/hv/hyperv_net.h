@@ -919,12 +919,6 @@ struct net_device_context {
 	u32 vf_serial;
 
 	bool datapath;	/* 0 - synthetic, 1 - VF nic */
-
-	/*
-	 * Tracks the current data path; initially the data path is set
-	 * to deliver packets on the synthetic path.
-	 */
-	bool synthetic_data_path;
 };
 
 /* Per channel data */

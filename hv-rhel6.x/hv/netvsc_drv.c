@@ -1605,8 +1605,7 @@ static void netvsc_link_change(struct work_struct *w)
 	case RNDIS_STATUS_MEDIA_CONNECT:
 		if (rdev->link_state) {
 			rdev->link_state = false;
-			//if (!ndev_ctx->datapath)
-				netif_carrier_on(net);
+			netif_carrier_on(net);
 			netif_tx_wake_all_queues(net);
 		} else {
 			notify = true;
@@ -1729,24 +1728,23 @@ static int netvsc_register_vf(struct net_device *vf_netdev)
 		return NOTIFY_DONE;
 
 	net_device_ctx = netdev_priv(ndev);
-	netvsc_dev = net_device_ctx->nvdev;
+	netvsc_dev = rtnl_dereference(net_device_ctx->nvdev);
 	if (!netvsc_dev || net_device_ctx->vf_netdev)
 		return NOTIFY_DONE;
 
-#if (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(6,7))
-	net_device_ctx->vf_netdev = vf_netdev;
+	netdev_info(ndev, "VF registering: %s\n", vf_netdev->name);
 
+#if (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(6,7))
 	if (netvsc_vf_join(vf_netdev, ndev) != 0)
 		return NOTIFY_DONE;
 #endif
-	netdev_info(ndev, "VF registering: %s\n", vf_netdev->name);
 	/*
 	 * Take a reference on the module.
 	 */
 	try_module_get(THIS_MODULE);
 
 	dev_hold(vf_netdev);
-	net_device_ctx->vf_netdev = vf_netdev;
+	rcu_assign_pointer(net_device_ctx->vf_netdev, vf_netdev);
 	return NOTIFY_OK;
 }
 
@@ -1803,8 +1801,9 @@ static int netvsc_unregister_vf(struct net_device *vf_netdev)
 	
 	netdev_upper_dev_unlink(vf_netdev, ndev);
 
-	net_device_ctx->vf_netdev = NULL;
+	RCU_INIT_POINTER(net_device_ctx->vf_netdev, NULL);
 	dev_put(vf_netdev);
+
 	module_put(THIS_MODULE);
 	return NOTIFY_OK;
 }
@@ -1834,8 +1833,6 @@ static int netvsc_probe(struct hv_device *dev,
 			net_device_ctx->msg_enable);
 
 	hv_set_drvdata(dev, net);
-
-	net_device_ctx->synthetic_data_path = true;
 
 	INIT_DELAYED_WORK(&net_device_ctx->dwork, netvsc_link_change);
 #if (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(6,2))
