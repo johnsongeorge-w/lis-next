@@ -33,6 +33,7 @@
 #include <linux/rtnetlink.h>
 
 #include "hyperv_net.h"
+#include "netvsc_compat.h"
 
 /*
  * Switch the data path from the synthetic interface to the VF
@@ -1252,12 +1253,12 @@ int netvsc_poll(struct napi_struct *napi, int budget)
 	 * and reschedule if ring is not empty.
 	 */
 	if (send_recv_completions(ndev, net_device, nvchan) == 0 &&
-		work_done < budget) {
-		napi_complete(napi);
-		if (hv_end_read(&channel->inbound)) {
+		work_done < budget &&
+		napi_complete_done(napi, work_done) &&
+		hv_end_read(&channel->inbound) &&
+		napi_schedule_prep(napi)) {
 			hv_begin_read(&channel->inbound);
-			napi_reschedule(napi);
-		}
+			__napi_schedule(napi);
 	}
 	/* Driver may overshoot since multiple packets per descriptor */
 	return min(work_done, budget);
@@ -1279,7 +1280,7 @@ void netvsc_channel_cb(void *context)
 		/* disable interupts from host */
 		hv_begin_read(rbi);
 
-		__napi_schedule(&nvchan->napi);
+		napi_schedule(&nvchan->napi);
 	}
 }
 
