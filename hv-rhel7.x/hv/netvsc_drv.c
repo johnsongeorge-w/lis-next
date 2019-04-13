@@ -413,6 +413,13 @@ static u16 netvsc_select_queue(struct net_device *ndev, struct sk_buff *skb,
 	return txq;
 }
 
+static inline int netvsc_txq_stopped_or_frozen(struct net_device *vf_netdev,
+		u16 txq_index)
+{
+	struct netdev_queue *txq = netdev_get_tx_queue(vf_netdev, txq_index);
+	return (netif_xmit_frozen_or_stopped(txq));
+}
+
 #else
 static u16 netvsc_select_queue(struct net_device *ndev, struct sk_buff *skb)
 {
@@ -595,14 +602,18 @@ static int netvsc_start_xmit(struct sk_buff *skb, struct net_device *net)
 	u32 rndis_msg_size;
 	u32 hash;
 	struct hv_page_buffer pb[MAX_PAGE_BUFFER_COUNT];
+	u16 txq_index;
 
 	/* if VF is present and up then redirect packets
 	 * already called with rcu_read_lock_bh
 	 */
 	vf_netdev = rcu_dereference_bh(net_device_ctx->vf_netdev);
 	if (vf_netdev && netif_running(vf_netdev) &&
-	    !netpoll_tx_running(net))
-		return netvsc_vf_xmit(net, vf_netdev, skb);
+	    !netpoll_tx_running(net)) {
+		txq_index = qdisc_skb_cb(skb)->slave_dev_queue_mapping;
+		if(!netvsc_txq_stopped_or_frozen(vf_netdev, txq_index))
+			return netvsc_vf_xmit(net, vf_netdev, skb);
+	}
 
 	/* We will atmost need two pages to describe the rndis
 	 * header. We can only transmit MAX_PAGE_BUFFER_COUNT number
