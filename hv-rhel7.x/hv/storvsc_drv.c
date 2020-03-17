@@ -409,8 +409,6 @@ enum storvsc_request_type {
 #define STORVSC_MIN_BUF_NR				64
 static int storvsc_ringbuffer_size = (256 * PAGE_SIZE);
 static u32 max_outstanding_req_per_channel;
-static int storvsc_change_queue_depth(struct scsi_device *sdev, int queue_depth,
-					int reason);
 
 static int storvsc_vcpus_per_sub_channel = 4;
 
@@ -2203,7 +2201,6 @@ static struct scsi_host_template scsi_driver = {
 #ifdef NOTYET
 	.track_queue_depth =	1,
 #endif
-	.change_queue_depth = 	storvsc_change_queue_depth,
 };
 
 enum {
@@ -2415,18 +2412,6 @@ err_out0:
 	scsi_host_put(host);
 	mutex_unlock(&probe_mutex);
 	return ret;
-}
-
-/* Change a scsi target's queue depth */
-static int storvsc_change_queue_depth(struct scsi_device *sdev, int queue_depth,
-					int reason)
-{
-	if (queue_depth > scsi_driver.can_queue)
-		queue_depth = scsi_driver.can_queue;
-
-	scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), queue_depth);
-
-	return sdev->queue_depth;
 }
 
 static int storvsc_remove(struct hv_device *dev)
